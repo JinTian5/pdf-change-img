@@ -1,0 +1,191 @@
+
+<!DOCTYPE html>
+<html lang="zh_CN">
+<head>
+    <meta charset="UTF-8">
+    <title>PDF转图片</title>
+    <link rel="shortcut icon" href="/favicon.ico">
+    <link href="css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css" type="text/css">
+</head>
+<body>
+<main>
+    <div class="container">
+        <h1>PDF转图片</h1>
+        <div class="file fullwidth mt-2">
+            <span class="file-cta">
+                <input id="input_file" class="file-input" type="file" accept="application/pdf"
+                       onchange="loadPDF(this.files[0])">
+                <span class="file-icon">
+                    <i class="fas fa-upload"></i>
+                </span>
+                <span class="file-button">选择一个PDF文件</span>
+            </span>
+            <span id="file_name" class="file-name"></span>
+        </div>
+        <div class="content-center mt-2">
+            <div class="group">
+                <button class="button" onclick="prevPage()">
+                    <i class="fa fa-arrow-left"></i>
+                    <span>上一页</span>
+                </button>
+                <button class="button" onclick="nextPage()">
+                    <span>下一页</span>
+                    <i class="fa fa-arrow-right"></i>
+                </button>
+            </div>
+            <div id="out_type" class="group">
+                <button class="button primary">
+                    <span>JPG</span>
+                </button>
+            </div>
+            <button class="button primary" onclick="save()">
+                <span>保存本页</span>
+            </button>
+            <button class="button primary" onclick="saveAll()">
+                <span>全部保存</span>
+            </button>
+        </div>
+        <p id="page_num"></p>
+        <div class="content-center mt-2">
+            <canvas id="preview" class="bordered" hidden></canvas>
+        </div>
+    </div>
+</main>
+<script src="js/pdf.min.js"></script>
+<script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'js/pdf.worker.min.js';
+
+    const preview = document.getElementById('preview');
+    const page_num = document.getElementById('page_num');
+    const out_type = document.getElementById('out_type');
+
+    let pdfFile, pdf, pageNum, context = preview.getContext('2d');
+
+    out_type.querySelectorAll('.button').forEach(function (btn) {
+        btn.onclick = function () {
+            out_type.querySelector('.primary').classList.remove('primary');
+            btn.classList.add('primary');
+        }
+    });
+
+    function loadPDF(file) {
+        pdfFile = file;
+        file_name.innerHTML = file.name;
+
+        let reader = new FileReader();
+        reader.onload = (e) => showPDF(e.target.result);
+        reader.readAsDataURL(file);
+    }
+
+    function showPDF(url) {
+        let loadingTask = pdfjsLib.getDocument(url);
+        loadingTask.promise.then(function (doc) {
+            pdf = doc;
+            pageNum = 1;
+            preview.hidden = false;
+            readerPage()
+        }, function (reason) {
+            alert(reason)
+        });
+    }
+
+    function prevPage() {
+        if (pageNum <= 1) {
+            return;
+        }
+        pageNum--;
+        readerPage()
+    }
+
+    function nextPage() {
+        if (pageNum >= pdf.numPages) {
+            return;
+        }
+        pageNum++;
+        readerPage()
+    }
+
+    function readerPage(callback) {
+        pdf.getPage(pageNum).then(function (page) {
+           let scale = 2.777403508672852;
+       
+//          let scale = 2.0833; //放大倍数
+         //    let scale = 4.1666; //放大倍数
+            let viewport = page.getViewport({scale: scale});
+           console.log('viewport',viewport)
+            preview.height = viewport.height;
+            preview.width = viewport.width;
+
+            let renderContext = {
+                canvasContext: context,
+                viewport: viewport
+            };
+            page.render(renderContext).promise.then(callback);
+        });
+        page_num.innerText = `页码 : ${pageNum} / ${pdf.numPages}`;
+    }
+
+    function save() {
+        let a = document.createElement('a');
+        let event = new MouseEvent('click');
+        let type = out_type.querySelector('.primary').innerText.toLowerCase();
+    }
+
+    function saveAll() {
+        pageNum = 1;
+        savePage()
+    }
+
+    function savePage() {
+        if (pageNum > pdf.numPages) {
+            alert('全部保存成功');
+            return
+        }
+
+        readerPage(function () {
+            save();
+            pageNum++;
+            savePage();
+        });
+    }
+    
+    
+    //从 canvas 提取图片 image
+function convertCanvasToImage(name,canvas) {
+//新Image对象，可以理解为DOM
+var image = new Image();
+// canvas.toDataURL 返回的是一串Base64编码的URL
+// 指定格式 PNG
+//image.src = canvas.toDataURL("image/jpeg");
+downloadFile(canvas.toDataURL("image/jpeg"),name)
+return image;
+}
+
+function downloadFile(content, fileName) { 
+	//下载base64图片
+	var base64ToBlob = function(code) {       
+		let parts = code.split(';base64,');
+		let contentType = parts[0].split(':')[1];       
+		let raw = window.atob(parts[1]);        
+		 rawLength = raw.length;     
+	    let uInt8Array = new Uint8Array(rawLength);       
+		 for(let i = 0; i < rawLength; ++i) {            
+		 	uInt8Array[i] = raw.charCodeAt(i);  
+		 }    
+		 return new Blob([uInt8Array], {
+		 	type: contentType     
+		 });
+	};
+ 	let aLink = document.createElement('a');
+ 	let blob = base64ToBlob(content); 
+ 	let evt = document.createEvent("HTMLEvents");   
+ 	evt.initEvent("click", true, true); 
+	 	//initEvent 不加后两个参数在FF下会报错  事件类型，是否冒泡，是否阻止浏览器的默认行为
+	aLink.download = fileName; 
+	aLink.href = URL.createObjectURL(blob);  
+	aLink.click()
+  }
+</script>
+</body>
+</html>
